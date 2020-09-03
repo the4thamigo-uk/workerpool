@@ -17,8 +17,8 @@ type (
 	}
 )
 
-// New creates a new worker pool with `workers` parallel worker goroutines, and
-// a queue size of 'queueSize'.
+// New creates a new worker pool with `workers` parallel goroutines to act as workers. Work is
+// posted to a queue of maximum size 'queueSize'. The worker pool is valid until a call to `Close()`.
 func New(workers int, queueSize int) (*Pool, error) {
 
 	if workers < 1 {
