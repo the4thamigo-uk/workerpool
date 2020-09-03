@@ -78,6 +78,13 @@ func (p *Pool) spawn(workers int) {
 func (p *Pool) worker() {
 	defer p.wg.Done()
 	for {
+		// prefer the cancellable context so we dont drain the queue
+		select {
+		case <-p.ctx.Done():
+			return
+		default:
+		}
+
 		select {
 		case w := <-p.c:
 			w()
