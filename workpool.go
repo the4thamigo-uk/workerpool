@@ -40,27 +40,37 @@ func New(workers int, queueSize int) (*Pool, error) {
 	return &p, nil
 }
 
+// Add places 'work' on the queue to be processed by one of the workers in the `Pool`.
+// If the number of items in the queue exceeds `queueSize` then the Add function blocks,
+// providing back-pressure. To limit blocking, set the `queueSize` to an appropriately high
+// number.
+func (p *Pool) Add(work Work) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("failed to submit work to the pool : %s", r)
+		}
+	}()
+	p.c <- work
+	return nil
+}
+
+// Close completes any currently executing work, and cancels all outstanding jobs in the work queue.
+// Following a call to Close(), any calls to Add() will fail with an error.
+func (p *Pool) Close() {
+	p.cancel()
+	p.wg.Wait()
+
+	// TODO: since other goroutines could still be calling `Add()`, we want to inform them that the
+	// pool is closed. The simplest way to do this is to close the channel. This also will release any
+	// goroutines that are currently blocking because the chan is full.
+	close(p.c)
+}
+
 func (p *Pool) spawn(workers int) {
 	for i := 0; i < workers; i++ {
 		p.wg.Add(1)
 		go p.worker()
 	}
-}
-
-// Add places 'work' on the queue to be processed by one of the workers in the `Pool`.
-// If the number of items in the queue exceeds `queueSize` then the Add function blocks,
-// providing back pressure.
-func (p *Pool) Add(work Work) {
-	p.c <- work
-}
-
-func (p *Pool) Close() {
-	// NB: we explicitly dont close the channel, so that any concurrent calls to Add() wont assert
-	p.cancel()
-	p.wg.Wait()
-
-	// TODO: since other goroutines can still be submitting work it can be the case that
-	// one or more threads are blocking in `Add()`, because the `queueSize` is exceeded.
 }
 
 func (p *Pool) worker() {
