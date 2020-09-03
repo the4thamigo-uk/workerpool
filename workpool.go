@@ -2,6 +2,7 @@ package workerpool
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -19,6 +20,14 @@ type (
 // New creates a new worker pool with `workers` parallel worker goroutines, and
 // a queue size of 'queueSize'.
 func New(workers int, queueSize int) (*Pool, error) {
+
+	if workers < 1 {
+		return nil, fmt.Errorf("number of workers (%d) must be greater than 0", workers)
+	}
+	if queueSize < 1 {
+		return nil, fmt.Errorf("size of the work queue (%d) must be greater than 0", queueSize)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	p := Pool{
 		ctx:    ctx,
