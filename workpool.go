@@ -56,7 +56,7 @@ func (p *Pool) Add(work Work) (err error) {
 
 // Close completes any currently executing work, and cancels all outstanding jobs in the work queue.
 // Following a call to Close(), any calls to Add() will fail with an error.
-func (p *Pool) Close() {
+func (p *Pool) Close() error {
 	p.cancel()
 	p.wg.Wait()
 
@@ -64,6 +64,8 @@ func (p *Pool) Close() {
 	// pool is closed. The simplest way to do this is to close the channel. This also will release any
 	// goroutines that are currently blocking because the chan is full.
 	close(p.c)
+
+	return nil
 }
 
 func (p *Pool) spawn(workers int) {
