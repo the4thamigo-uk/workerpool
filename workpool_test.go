@@ -46,7 +46,7 @@ func TestWorkPool_AddAfterClose(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestWorkPool_WaitForCompletion(t *testing.T) {
+func TestWorkPool_Cancel(t *testing.T) {
 	p, err := workerpool.New(1, 1)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -55,8 +55,50 @@ func TestWorkPool_WaitForCompletion(t *testing.T) {
 	err = p.Add(testWork(1, 2*time.Second, res))
 	require.NoError(t, err)
 	time.Sleep(time.Second)
-	p.Close()
 
-	id1 := <-res
-	require.Equal(t, 1, id1)
+	p.Cancel()
+
+	// after complete all the result should be sitting in the chan
+	select {
+	case id1 := <-res:
+		require.Equal(t, 1, id1)
+	default:
+		t.Errorf("work 1 did not complete")
+	}
+}
+
+func TestWorkPool_Complete(t *testing.T) {
+	p, err := workerpool.New(1, 1)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	res := make(chan int, 3)
+	err = p.Add(testWork(1, 1*time.Second, res))
+	require.NoError(t, err)
+	err = p.Add(testWork(2, 1*time.Second, res))
+	require.NoError(t, err)
+	err = p.Add(testWork(3, 1*time.Second, res))
+	require.NoError(t, err)
+
+	p.Complete()
+
+	// after complete all the results should be sitting in the chan
+	select {
+	case id1 := <-res:
+		require.Equal(t, 1, id1)
+	default:
+		t.Errorf("work 1 did not complete")
+	}
+	select {
+	case id2 := <-res:
+		require.Equal(t, 2, id2)
+	default:
+		t.Errorf("work 2 did not complete")
+	}
+	select {
+	case id3 := <-res:
+		require.Equal(t, 3, id3)
+	default:
+		t.Errorf("work 3 did not complete")
+	}
 }
