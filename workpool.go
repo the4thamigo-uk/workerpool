@@ -50,21 +50,36 @@ func (p *Pool) Add(work Work) (err error) {
 			err = fmt.Errorf("failed to submit work to the pool : %s", r)
 		}
 	}()
-	p.c <- work
+
+	// never schedule `nil` work as it is meaningless and we use `nil` to signify that the chan is closed
+	if work != nil {
+		p.c <- work
+	}
 	return nil
 }
 
-// Close completes any currently executing work, and cancels all outstanding jobs in the work queue.
+// Complete prevents any further jobs being queued and waits to complete all queued work
 // Following a call to Close(), any calls to Add() will fail with an error.
-func (p *Pool) Close() error {
+func (p *Pool) Complete() {
+	close(p.c)
+	p.wg.Wait()
+}
+
+// Cancel prevents any further jobs being queued and completes all work currently being executed. It cancels all other work which has not been started.
+// Following a call to Close(), any calls to Add() will fail with an error.
+func (p *Pool) Cancel() {
 	p.cancel()
 	p.wg.Wait()
 
-	// TODO: since other goroutines could still be calling `Add()`, we want to inform them that the
+	// since other goroutines could still be calling `Add()`, we want to inform them that the
 	// pool is closed. The simplest way to do this is to close the channel. This also will release any
 	// goroutines that are currently blocking because the chan is full.
 	close(p.c)
+}
 
+// Close calls Cancel() and is here primarily to support io.Closer()
+func (p *Pool) Close() error {
+	p.Cancel()
 	return nil
 }
 
@@ -87,10 +102,13 @@ func (p *Pool) worker() {
 
 		select {
 		case w := <-p.c:
+			if w == nil {
+				// nil signifies close of the channel, as it is the zero value for func type
+				return
+			}
 			w()
 		case <-p.ctx.Done():
 			return
 		}
 	}
-
 }
