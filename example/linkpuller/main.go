@@ -22,8 +22,6 @@ var (
 	urlRegex = regexp.MustCompile(`https?://[A-Za-z0-9/\.]*`)
 )
 
-const maxQueueSize = 10000
-
 func main() {
 
 	var workers *int = pflag.IntP("workers", "w", 10, "number of workers")
@@ -50,14 +48,17 @@ func run(urls []string, workers int) error {
 		return err
 	}
 
-	defer wp.Close()
+	defer wp.Complete()
 
 	rlts := make(chan result, len(urls))
 
 	// TODO: when we read from stdin we will need to push work on a separate goroutine as
 	// Add() can block if the queue size is exceeded.
 	for _, url := range urls {
-		wp.Add(extractLinksWork(url, rlts))
+		err = wp.Add(extractLinksWork(url, rlts))
+		if err != nil {
+			return err
+		}
 	}
 
 	var count int
