@@ -1,6 +1,7 @@
 package workerpool_test
 
 import (
+	"context"
 	"github.com/stretchr/testify/require"
 	"github.com/the4thamigo-uk/workerpool"
 	"testing"
@@ -21,11 +22,11 @@ func TestWorkPool_ThreeJobs(t *testing.T) {
 	defer p.Close()
 
 	res := make(chan int, 1)
-	err = p.Add(testWork(1, time.Second, res))
+	err = p.Add(context.Background(), testWork(1, time.Second, res))
 	require.NoError(t, err)
-	err = p.Add(testWork(2, time.Second, res))
+	err = p.Add(context.Background(), testWork(2, time.Second, res))
 	require.NoError(t, err)
-	err = p.Add(testWork(3, time.Second, res))
+	err = p.Add(context.Background(), testWork(3, time.Second, res))
 	require.NoError(t, err)
 
 	id1 := <-res
@@ -42,8 +43,28 @@ func TestWorkPool_AddAfterClose(t *testing.T) {
 	require.NotNil(t, p)
 	p.Close()
 
-	err = p.Add(func() {})
+	err = p.Add(context.Background(), func() {})
 	require.Error(t, err)
+}
+
+func TestWorkPool_AddContextDone(t *testing.T) {
+	p, err := workerpool.New(1, 1)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	defer p.Close()
+
+	// push a task into the pool which will be immediately started
+	err = p.Add(context.Background(), func() { time.Sleep(1 * time.Second) })
+	require.Nil(t, err)
+	// push a second task into the pool which will be queued
+	err = p.Add(context.Background(), func() { time.Sleep(1 * time.Second) })
+	require.Nil(t, err)
+
+	// adding another task should block as the queue is full
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	err = p.Add(ctx, func() {})
+	require.Equal(t, context.DeadlineExceeded, err)
 }
 
 func TestWorkPool_Cancel(t *testing.T) {
@@ -52,7 +73,7 @@ func TestWorkPool_Cancel(t *testing.T) {
 	require.NotNil(t, p)
 
 	res := make(chan int, 1)
-	err = p.Add(testWork(1, 2*time.Second, res))
+	err = p.Add(context.Background(), testWork(1, 2*time.Second, res))
 	require.NoError(t, err)
 	time.Sleep(time.Second)
 
@@ -73,11 +94,11 @@ func TestWorkPool_Complete(t *testing.T) {
 	require.NotNil(t, p)
 
 	res := make(chan int, 3)
-	err = p.Add(testWork(1, 1*time.Second, res))
+	err = p.Add(context.Background(), testWork(1, 1*time.Second, res))
 	require.NoError(t, err)
-	err = p.Add(testWork(2, 1*time.Second, res))
+	err = p.Add(context.Background(), testWork(2, 1*time.Second, res))
 	require.NoError(t, err)
-	err = p.Add(testWork(3, 1*time.Second, res))
+	err = p.Add(context.Background(), testWork(3, 1*time.Second, res))
 	require.NoError(t, err)
 
 	p.Complete()

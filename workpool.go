@@ -44,7 +44,7 @@ func New(workers int, queueSize int) (*Pool, error) {
 // If the number of items in the queue exceeds `queueSize` then the Add function blocks,
 // providing back-pressure. To limit blocking, set the `queueSize` to an appropriately high
 // number.
-func (p *Pool) Add(work Work) (err error) {
+func (p *Pool) Add(ctx context.Context, work Work) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("failed to submit work to the pool : %s", r)
@@ -53,9 +53,13 @@ func (p *Pool) Add(work Work) (err error) {
 
 	// never schedule `nil` work as it is meaningless and we use `nil` to signify that the chan is closed
 	if work != nil {
-		p.c <- work
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+		case p.c <- work:
+		}
 	}
-	return nil
+	return
 }
 
 // Complete prevents any further jobs being queued and waits to complete all queued work
