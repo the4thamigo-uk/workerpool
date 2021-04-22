@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/spf13/pflag"
 	"github.com/the4thamigo-uk/workerpool"
@@ -43,6 +44,8 @@ func main() {
 
 func run(urls []string, workers int) error {
 
+	ctx := context.Background()
+
 	wp, err := workerpool.New(workers, len(urls))
 	if err != nil {
 		return err
@@ -55,7 +58,7 @@ func run(urls []string, workers int) error {
 	// TODO: when we read from stdin we will need to push work on a separate goroutine as
 	// Add() can block if the queue size is exceeded.
 	for _, url := range urls {
-		err = wp.Add(extractLinksWork(url, rlts))
+		err = wp.Add(ctx, extractLinksWork(url, rlts))
 		if err != nil {
 			return err
 		}
